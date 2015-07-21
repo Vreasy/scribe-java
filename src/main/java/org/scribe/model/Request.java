@@ -1,12 +1,18 @@
 package org.scribe.model;
 
-import java.io.*;
-import java.net.*;
-import java.nio.charset.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import org.scribe.exceptions.*;
+import org.scribe.exceptions.OAuthConnectionException;
+import org.scribe.exceptions.OAuthException;
 
 /**
  * Represents an HTTP Request object
@@ -63,13 +69,54 @@ public class Request
     try
     {
       createConnection();
-      return doSend(tuner);
+      return doSend(tuner, null);
     }
     catch (Exception e)
     {
       throw new OAuthConnectionException(e);
     }
   }
+  
+  /**
+   * Execute the request and return a {@link Response}
+   * 
+   * @return Http Response
+   * @throws RuntimeException
+   *           if the connection cannot be created.
+   */
+  public Response send(RequestTuner tuner, OutputStream os)
+  {
+    try
+    {
+      createConnection();
+      return doSend(tuner, os.toString());
+    }
+    catch (Exception e)
+    {
+      throw new OAuthConnectionException(e);
+    }
+  }
+
+  /**
+   * Execute the request and return a {@link Response}
+   * 
+   * @return Http Response
+   * @throws RuntimeException
+   *           if the connection cannot be created.
+   */
+  public Response send(RequestTuner tuner, String body)
+  {
+    try
+    {
+      createConnection();
+      return doSend(tuner, body);
+    }
+    catch (Exception e)
+    {
+      throw new OAuthConnectionException(e);
+    }
+  }
+
 
   public Response send()
   {
@@ -97,7 +144,7 @@ public class Request
     return querystringParams.appendTo(url);
   }
 
-  Response doSend(RequestTuner tuner) throws IOException
+  Response doSend(RequestTuner tuner, String body) throws IOException
   {
     connection.setRequestMethod(this.verb.name());
     if (connectTimeout != null) 
@@ -109,9 +156,11 @@ public class Request
       connection.setReadTimeout(readTimeout.intValue());
     }
     addHeaders(connection);
-    if (verb.equals(Verb.PUT) || verb.equals(Verb.POST))
+    if (body == null && verb.equals(Verb.PUT) || verb.equals(Verb.POST))
     {
       addBody(connection, getByteBodyContents());
+    } else if(body != null && verb.equals(Verb.PUT) || verb.equals(Verb.POST)) {
+        addBody(connection, body.getBytes(Charset.forName("UTF-8")));
     }
     tuner.tune(this);
     return new Response(connection);
@@ -135,6 +184,7 @@ public class Request
     conn.setDoOutput(true);
     conn.getOutputStream().write(content);
   }
+  
 
   /**
    * Add an HTTP Header to the Request
